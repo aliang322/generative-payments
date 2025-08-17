@@ -11,7 +11,17 @@
   "dependencies": {
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.6"
+    "next": "15.4.6",
+    "viem": "*",
+    "@dynamic-labs/sdk-react-core": "*",
+    "@dynamic-labs/algorand": "*",
+    "@dynamic-labs/bitcoin": "*",
+    "@dynamic-labs/cosmos": "*",
+    "@dynamic-labs/ethereum": "*",
+    "@dynamic-labs/flow": "*",
+    "@dynamic-labs/solana": "*",
+    "@dynamic-labs/starknet": "*",
+    "@dynamic-labs/sui": "*"
   },
   "devDependencies": {
     "typescript": "^5",

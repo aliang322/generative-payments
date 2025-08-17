@@ -3,12 +3,19 @@
 import SpeechInput from "@/components/SpeechInput";
 import GlowCard from "@/components/GlowCard";
 import TypewriterExamples from "@/components/TypewriterExamples";
+import LoginButton from "@/components/LoginButton";
 import { useState } from "react";
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
 export default function Home() {
 	const [example, setExample] = useState<string>("Rent, but split into tiny bites");
+	const { user, setShowAuthFlow } = useDynamicContext();
 
 	function handleSubmit(value: string) {
+		if (!user) {
+			setShowAuthFlow(true);
+			return;
+		}
 		// TODO: route to generation page or call API
 		console.log("Generate for:", value);
 	}
@@ -21,19 +28,13 @@ export default function Home() {
 			<div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-700/20 blur-3xl animate-blob-delayed" />
 
 			<header className="relative z-10 flex items-center justify-end max-w-screen-sm mx-auto w-full px-6 pt-6">
-				<a
-					href="#login"
-					className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors backdrop-blur-md shadow-sm"
-				>
-					<span className="i-heroicons-user text-base" aria-hidden />
-					Login
-				</a>
+				<LoginButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors backdrop-blur-md shadow-sm" />
 			</header>
 
 			<section className="relative z-10 flex-1 flex flex-col items-start justify-center max-w-screen-sm mx-auto w-full gap-6 px-6">
 				<GlowCard className="w-full">
 					<h1 className="text-3xl sm:text-4xl font-semibold tracking-tight leading-tight">
-						Generate custom plans to <br /> pay and get paid.
+						Generate payment plans to <br /> pay and get paid.
 					</h1>
 
 					<div className="mt-8">
@@ -42,7 +43,7 @@ export default function Home() {
 							value={example}
 							placeholder=""
 							hintText=""
-							nextLabel="Next"
+							nextLabel={user ? "Next" : "Login to continue"}
 							onSubmit={handleSubmit}
 							showNextButton
 							readOnly
