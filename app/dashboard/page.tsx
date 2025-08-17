@@ -27,8 +27,8 @@ type PaymentPlanData = {
 	amountPerTransaction: number; // unitless
 	totalAmount: number; // unitless
 	numberOfTransactions: number; // integer
-	startTime: number; // Unix timestamp in seconds
-	endTime: number; // Unix timestamp in seconds
+	startTimeOffset: number; // seconds from now
+	endTimeOffset: number; // seconds from now
 	code?: string; // generated import code
 };
 
@@ -115,6 +115,7 @@ export default function Dashboard() {
 	const [importMode, setImportMode] = useState<boolean>(false);
 	const [importCode, setImportCode] = useState<string>("");
 	const [importPlanName, setImportPlanName] = useState<string>("");
+	const [planCreationTime, setPlanCreationTime] = useState<number | null>(null);
 	const [editablePlanData, setEditablePlanData] = useState<PaymentPlanData | null>(null);
 
 	// Validation function
@@ -181,8 +182,8 @@ export default function Dashboard() {
 				amountPerTransaction: 0.1,
 				totalAmount: 0.5,
 				numberOfTransactions: 5,
-				startTime: now,
-				endTime: thirtyDaysFromNow
+				startTimeOffset: 0,
+				endTimeOffset: 2592000 // 30 days
 			};
 		}
 	}
@@ -219,6 +220,8 @@ export default function Dashboard() {
 				return;
 			}
 			
+			// Store the generation time for offset calculations
+			setPlanCreationTime(Math.floor(Date.now() / 1000));
 			setGeneratedPlanData(parsedData);
 			setEditablePlanData(parsedData);
 			setCreateStep(2);
@@ -233,6 +236,11 @@ export default function Dashboard() {
 	async function handleCreatePlan() {
 		if (!editablePlanData) return;
 
+		// Store the creation timestamp and convert offsets to actual timestamps
+		const creationTime = Math.floor(Date.now() / 1000);
+		const startTime = creationTime + editablePlanData.startTimeOffset;
+		const endTime = creationTime + editablePlanData.endTimeOffset;
+
 		const newPlan: Plan = {
 			id: Date.now().toString(),
 			name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
@@ -241,8 +249,8 @@ export default function Dashboard() {
 			status: "draft",
 			frequency: editablePlanData.frequency,
 			amountPerTransaction: editablePlanData.amountPerTransaction,
-			startTime: editablePlanData.startTime,
-			endTime: editablePlanData.endTime,
+			startTime: startTime,
+			endTime: endTime,
 			chain: selectedChain,
 			title: editablePlanData.title,
 		};
@@ -252,7 +260,7 @@ export default function Dashboard() {
 		// Generate code with number mappings
 		const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
 		const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
-		const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${editablePlanData.startTime};${editablePlanData.endTime};${planTypeNumber};${chainNumber}`;
+		const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
 		
 		// Store the code and go to Step 3
 		const planDataWithCode = { ...editablePlanData, code };
@@ -620,26 +628,30 @@ export default function Dashboard() {
 									
 									<div className="grid grid-cols-2 gap-4">
 										<div>
-											<label className="block text-sm font-medium text-white/60 mb-1">Start Time (Unix timestamp)</label>
+											<label className="block text-sm font-medium text-white/60 mb-1">Start Time Offset (seconds from plan acceptance)</label>
 											<input
 												type="number"
-												value={editablePlanData.startTime}
-												onChange={(e) => handleFieldEdit('startTime', Number(e.target.value))}
+												value={editablePlanData.startTimeOffset}
+												onChange={(e) => handleFieldEdit('startTimeOffset', Number(e.target.value))}
 												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
-												placeholder="1704067200"
+												placeholder="0"
 											/>
-											<p className="text-xs text-white/40 mt-1">{formatTimestampWithTime(editablePlanData.startTime)}</p>
+											<p className="text-xs text-white/40 mt-1">
+												{planCreationTime ? formatTimestampWithTime(planCreationTime + editablePlanData.startTimeOffset) : "Will be calculated when plan is created"}
+											</p>
 										</div>
 										<div>
-											<label className="block text-sm font-medium text-white/60 mb-1">End Time (Unix timestamp)</label>
+											<label className="block text-sm font-medium text-white/60 mb-1">End Time Offset (seconds from plan acceptance)</label>
 											<input
 												type="number"
-												value={editablePlanData.endTime}
-												onChange={(e) => handleFieldEdit('endTime', Number(e.target.value))}
+												value={editablePlanData.endTimeOffset}
+												onChange={(e) => handleFieldEdit('endTimeOffset', Number(e.target.value))}
 												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
-												placeholder="1706659200"
+												placeholder="2592000"
 											/>
-											<p className="text-xs text-white/40 mt-1">{formatTimestampWithTime(editablePlanData.endTime)}</p>
+											<p className="text-xs text-white/40 mt-1">
+												{planCreationTime ? formatTimestampWithTime(planCreationTime + editablePlanData.endTimeOffset) : "Will be calculated when plan is created"}
+											</p>
 										</div>
 									</div>
 								</div>

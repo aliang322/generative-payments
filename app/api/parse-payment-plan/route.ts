@@ -37,10 +37,10 @@ Return only a JSON object with these fields:
 - amountPerTransaction: Amount per payment as a unitless number (e.g., 0.1, 50, 100). Return -1 if amount cannot be determined.
 - totalAmount: Total amount for all transactions (amountPerTransaction * numberOfTransactions). Return -1 if cannot be calculated.
 - numberOfTransactions: Total number of transactions to be made. Return -1 if cannot be determined.
-- startTime: Start time as Unix timestamp in seconds (use current timestamp if not specified)
-- endTime: End time as Unix timestamp in seconds (use current timestamp + 30 days if not specified)
+- startTimeOffset: Start time offset in seconds from plan acceptance (0 for immediate start, 86400 for start tomorrow, etc.). Return 0 if not specified.
+- endTimeOffset: End time offset in seconds from plan acceptance (e.g., 2592000 for 30 days from acceptance, 604800 for 1 week from acceptance). Return -1 if amount cannot be determined.
 
-Example response: {"title": "Weekly Rent Split", "frequency": 604800, "amountPerTransaction": 0.1, "totalAmount": 0.5, "numberOfTransactions": 5, "startTime": 1704067200, "endTime": 1706659200}`;
+Example response: {"title": "Weekly Rent Split", "frequency": 604800, "amountPerTransaction": 0.1, "totalAmount": 0.5, "numberOfTransactions": 5, "startTimeOffset": 0, "endTimeOffset": 2592000}`;
 
 		const response = await fetch('https://api.openai.com/v1/chat/completions', {
 			method: 'POST',
@@ -53,7 +53,7 @@ Example response: {"title": "Weekly Rent Split", "frequency": 604800, "amountPer
 				messages: [
 					{
 						role: 'system',
-						content: 'You are a payment plan parser. Extract structured data from natural language descriptions. Return only valid JSON with a concise title (string, max 50 chars), numeric values for frequency (in seconds), amountPerTransaction (unitless), totalAmount (unitless), numberOfTransactions (integer), startTime (Unix timestamp), and endTime (Unix timestamp).'
+						content: 'You are a payment plan parser. Extract structured data from natural language descriptions. Return only valid JSON with a concise title (string, max 50 chars), numeric values for frequency (in seconds), amountPerTransaction (unitless), totalAmount (unitless), numberOfTransactions (integer), startTimeOffset (seconds from plan acceptance), and endTimeOffset (seconds from plan acceptance).'
 					},
 					{
 						role: 'user',
@@ -111,14 +111,13 @@ Example response: {"title": "Weekly Rent Split", "frequency": 604800, "amountPer
 				amountPerTransaction: 0.1,
 				totalAmount: 0.5,
 				numberOfTransactions: 5,
-				startTime: now,
-				endTime: thirtyDaysFromNow
+				startTimeOffset: 0,
+				endTimeOffset: 2592000 // 30 days
 			};
 		}
 
 		// Ensure all required fields are present with proper defaults
 		const now = Math.floor(Date.now() / 1000); // Current timestamp in seconds
-		const thirtyDaysFromNow = now + (30 * 24 * 60 * 60); // 30 days in seconds
 		
 		const result = {
 			title: parsedData.title || "Payment Plan",
@@ -126,8 +125,8 @@ Example response: {"title": "Weekly Rent Split", "frequency": 604800, "amountPer
 			amountPerTransaction: parsedData.amountPerTransaction || 0.1,
 			totalAmount: parsedData.totalAmount || (parsedData.amountPerTransaction * parsedData.numberOfTransactions) || 0.5,
 			numberOfTransactions: parsedData.numberOfTransactions || 5,
-			startTime: parsedData.startTime || now,
-			endTime: parsedData.endTime || thirtyDaysFromNow
+			startTimeOffset: parsedData.startTimeOffset || 0,
+			endTimeOffset: parsedData.endTimeOffset || 2592000 // Default to 30 days
 		};
 
 		// Check if critical fields couldn't be determined
