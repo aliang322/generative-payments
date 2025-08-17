@@ -3,10 +3,11 @@ import { getTransaction } from "@/lib/fern";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tx = await getTransaction(params.id);
+    const { id } = await params;
+    const tx = await getTransaction(id);
     return NextResponse.json(tx);
   } catch (error) {
     console.error("Transaction status error:", error);

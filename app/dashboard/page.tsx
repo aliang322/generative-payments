@@ -14,6 +14,7 @@ type Plan = {
 	type: "sending" | "receiving";
 	description: string;
 	status: "draft" | "active" | "completed";
+	fundingStatus: "unfunded" | "funded" | "pending";
 	frequency?: number; // in seconds
 	amountPerTransaction?: number; // unitless
 	startTime?: number; // Unix timestamp in seconds
@@ -88,6 +89,7 @@ export default function Dashboard() {
 			type: "sending",
 			description: "Split 0.1 ETH over 3 weeks for rent",
 			status: "active",
+			fundingStatus: "unfunded",
 		},
 		{
 			id: "2",
@@ -95,6 +97,7 @@ export default function Dashboard() {
 			type: "receiving",
 			description: "Get paid $4.50 per muffin",
 			status: "draft",
+			fundingStatus: "unfunded",
 		},
 	]);
 
@@ -242,6 +245,7 @@ export default function Dashboard() {
 			type: planType as "sending" | "receiving",
 			description: planDescription,
 			status: "draft",
+			fundingStatus: "unfunded",
 			frequency: editablePlanData.frequency,
 			amountPerTransaction: editablePlanData.amountPerTransaction,
 			startTime: startTime,
@@ -326,6 +330,7 @@ export default function Dashboard() {
 				type: planType,
 				description: `Imported plan: ${importPlanName}`,
 				status: "draft",
+				fundingStatus: "unfunded",
 				frequency: Number(frequency),
 				amountPerTransaction: Number(amountPerTransaction),
 				startTime: Number(startTime),
@@ -829,6 +834,7 @@ export default function Dashboard() {
 											<th className="text-left py-4 px-4 font-medium text-white/80">Plan</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Description</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Type</th>
+											<th className="text-left py-4 px-4 font-medium text-white/80">Funding</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Details</th>
 											<th className="text-right py-4 px-4 font-medium text-white/80">Actions</th>
 										</tr>
@@ -851,6 +857,20 @@ export default function Dashboard() {
 														}`}
 													>
 														{plan.type === "sending" ? "Sending" : "Receiving"}
+													</span>
+												</td>
+												<td className="py-4 px-4">
+													<span
+														className={`px-3 py-1 rounded-full text-xs font-medium ${
+															plan.fundingStatus === "funded"
+																? "bg-green-500/20 text-green-300"
+																: plan.fundingStatus === "pending"
+																? "bg-yellow-500/20 text-yellow-300"
+																: "bg-gray-500/20 text-gray-300"
+														}`}
+													>
+														{plan.fundingStatus === "funded" ? "Funded" : 
+														 plan.fundingStatus === "pending" ? "Pending" : "Unfunded"}
 													</span>
 												</td>
 												<td className="py-4 px-4">
@@ -903,6 +923,14 @@ export default function Dashboard() {
 					onClose={() => {
 						setShowFernModal(false);
 						setSelectedPlanForFunding(null);
+					}}
+					onFundingComplete={(planId: string) => {
+						// Update the plan's funding status to funded
+						setPlans(plans.map(plan => 
+							plan.id === planId 
+								? { ...plan, fundingStatus: "funded" as const }
+								: plan
+						));
 					}}
 					plan={{
 						id: selectedPlanForFunding.id,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   memory,
-  startOfframpFromReceiver,
+  startOfframpFromUserWallet,
   type Plan,
   type Chain,
 } from "@/lib/fern";
@@ -19,13 +19,12 @@ export async function POST(req: NextRequest) {
         amountUsd: body.amountUsd,
       } as Plan);
 
-    const resp = await startOfframpFromReceiver({
-      plan,
-      receiverEmail: body.receiverEmail,
+    const resp = await startOfframpFromUserWallet({
+      userEmail: body.receiverEmail,
+      userWalletAddress: body.receiverExternalWalletAddress,
+      userWalletChain: body.chosenChain as Chain,
       amountUsd: body.amountUsd,
-      chosenChain: body.chosenChain as Chain, // receiver-picked chain; must be CCTP-supported elsewhere in your flow
-      autoCashOut: !!body.autoCashOut,
-      receiverExternalWalletAddress: body.receiverExternalWalletAddress, // required if autoCashOut=false
+      fiatMethod: "ACH",
     });
 
     return NextResponse.json(resp);
