@@ -29,6 +29,7 @@ type PaymentPlanData = {
 	numberOfTransactions: number; // integer
 	startTime: number; // Unix timestamp in seconds
 	endTime: number; // Unix timestamp in seconds
+	code?: string; // generated import code
 };
 
 const CHAINS = [
@@ -40,6 +41,36 @@ const CHAINS = [
 	{ id: "optimism", name: "Optimism", icon: "🔴" },
 ];
 
+// Number mappings for plan type and chain
+const PLAN_TYPE_MAP = {
+	"sending": 1,
+	"receiving": 2,
+} as const;
+
+const CHAIN_MAP = {
+	"ethereum": 1,
+	"solana": 2,
+	"polygon": 3,
+	"base": 4,
+	"arbitrum": 5,
+	"optimism": 6,
+} as const;
+
+// Reverse mappings for importing
+const PLAN_TYPE_REVERSE_MAP = {
+	1: "sending",
+	2: "receiving",
+} as const;
+
+const CHAIN_REVERSE_MAP = {
+	1: "ethereum",
+	2: "solana",
+	3: "polygon",
+	4: "base",
+	5: "arbitrum",
+	6: "optimism",
+} as const;
+
 export default function Dashboard() {
 	const { user, setShowDynamicUserProfile } = useDynamicContext();
 	const router = useRouter();
@@ -48,7 +79,7 @@ export default function Dashboard() {
 	console.log("Dashboard render - user:", !!user, "setShowDynamicUserProfile:", !!setShowDynamicUserProfile);
 	
 	const [activeTab, setActiveTab] = useState<"create" | "plans">("create");
-	const [createStep, setCreateStep] = useState<1 | 2>(1);
+	const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
 	const [plans, setPlans] = useState<Plan[]>([
 		{
 			id: "1",
@@ -80,6 +111,10 @@ export default function Dashboard() {
 	const [warnings, setWarnings] = useState<string[]>([]);
 	const [errors, setErrors] = useState<string[]>([]);
 	const [generatedPlanData, setGeneratedPlanData] = useState<PaymentPlanData | null>(null);
+	const [showCode, setShowCode] = useState<boolean>(false);
+	const [importMode, setImportMode] = useState<boolean>(false);
+	const [importCode, setImportCode] = useState<string>("");
+	const [importPlanName, setImportPlanName] = useState<string>("");
 	const [editablePlanData, setEditablePlanData] = useState<PaymentPlanData | null>(null);
 
 	// Validation function
@@ -214,13 +249,15 @@ export default function Dashboard() {
 
 		setPlans([newPlan, ...plans]);
 		
-		// Reset form and go back to step 1
-		setPlanType("");
-		setSelectedChain("");
-		setPlanDescription("");
-		setGeneratedPlanData(null);
-		setEditablePlanData(null);
-		setCreateStep(1);
+		// Generate code with number mappings
+		const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
+		const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
+		const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${editablePlanData.startTime};${editablePlanData.endTime};${planTypeNumber};${chainNumber}`;
+		
+		// Store the code and go to Step 3
+		const planDataWithCode = { ...editablePlanData, code };
+		setGeneratedPlanData(planDataWithCode);
+		setCreateStep(3);
 	}
 
 	function handleFieldEdit(field: keyof PaymentPlanData, value: number | string) {
@@ -247,6 +284,58 @@ export default function Dashboard() {
 		} else {
 			console.error("setShowDynamicUserProfile is not available");
 			alert("Funding options not available. Please try again or contact support.");
+		}
+	}
+
+	function handleDeletePlan(planId: string) {
+		setPlans(plans.filter(plan => plan.id !== planId));
+	}
+
+	function handleImportPlan() {
+		if (!importCode.trim() || !importPlanName.trim()) {
+			alert("Please enter both the import code and plan name.");
+			return;
+		}
+
+		const parts = importCode.split(';');
+		if (parts.length !== 8) {
+			alert("Invalid import code format. Please check the code and try again.");
+			return;
+		}
+
+		try {
+			const [frequency, amountPerTransaction, totalAmount, numberOfTransactions, startTime, endTime, typeNumber, chainNumber] = parts;
+			
+			// Convert numbers back to strings using reverse mappings
+			const planType = PLAN_TYPE_REVERSE_MAP[Number(typeNumber) as keyof typeof PLAN_TYPE_REVERSE_MAP];
+			const chain = CHAIN_REVERSE_MAP[Number(chainNumber) as keyof typeof CHAIN_REVERSE_MAP];
+			
+			if (!planType) {
+				alert("Invalid plan type in import code.");
+				return;
+			}
+			
+			const newPlan: Plan = {
+				id: Date.now().toString(),
+				name: importPlanName,
+				type: planType,
+				description: `Imported plan: ${importPlanName}`,
+				status: "draft",
+				frequency: Number(frequency),
+				amountPerTransaction: Number(amountPerTransaction),
+				startTime: Number(startTime),
+				endTime: Number(endTime),
+				chain: chain || undefined,
+				title: importPlanName,
+			};
+
+			setPlans([newPlan, ...plans]);
+			setImportMode(false);
+			setImportCode("");
+			setImportPlanName("");
+			alert("Plan imported successfully!");
+		} catch (error) {
+			alert("Error importing plan. Please check the code format and try again.");
 		}
 	}
 
@@ -350,6 +439,14 @@ export default function Dashboard() {
 								createStep >= 2 ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/60'
 							}`}>
 								2
+							</div>
+							<div className={`flex-1 h-px ${
+								createStep >= 3 ? 'bg-blue-500' : 'bg-white/10'
+							}`} />
+							<div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+								createStep >= 3 ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/60'
+							}`}>
+								3
 							</div>
 						</div>
 
@@ -569,11 +666,148 @@ export default function Dashboard() {
 								</div>
 							</>
 						)}
+
+						{createStep === 3 && generatedPlanData && (
+							<>
+								<h2 className="text-xl font-semibold mb-4">Step 3: Your Plan Code</h2>
+								
+								<div className="mb-6 p-6 rounded-xl bg-white/5 border border-white/10">
+									<h3 className="text-lg font-medium mb-4">Plan Created Successfully!</h3>
+									
+									<div className="mb-4">
+										<label className="block text-sm font-medium text-white/60 mb-2">Import Code</label>
+										<div className="relative">
+											<input
+												type="text"
+												value={generatedPlanData.code || ""}
+												readOnly
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white font-mono text-sm"
+											/>
+											<button
+												onClick={() => {
+													navigator.clipboard.writeText(generatedPlanData.code || "");
+													alert("Code copied to clipboard!");
+												}}
+												className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 rounded-lg bg-blue-500 text-white text-xs hover:bg-blue-600 transition-colors"
+											>
+												Copy
+											</button>
+										</div>
+										<p className="text-xs text-white/40 mt-2">
+											Share this code with others to import your payment plan
+										</p>
+									</div>
+
+									<div className="mb-4">
+										<label className="block text-sm font-medium text-white/60 mb-2">Code Format</label>
+										<p className="text-xs text-white/40 font-mono">
+											frequency;amountPerTransaction;totalAmount;numberOfTransactions;startTime;endTime;planType;chain
+										</p>
+									</div>
+
+									<div className="mb-4">
+										<label className="block text-sm font-medium text-white/60 mb-2">Plan Type Mapping</label>
+										<p className="text-xs text-white/40">
+											1 = Sending, 2 = Receiving
+										</p>
+									</div>
+
+									<div className="mb-4">
+										<label className="block text-sm font-medium text-white/60 mb-2">Chain Mapping</label>
+										<p className="text-xs text-white/40">
+											1 = Ethereum, 2 = Solana, 3 = Polygon, 4 = Base, 5 = Arbitrum, 6 = Optimism
+										</p>
+									</div>
+								</div>
+
+								{/* Action Buttons */}
+								<div className="flex gap-3">
+									<button
+										onClick={() => {
+											setCreateStep(1);
+											setGeneratedPlanData(null);
+											setEditablePlanData(null);
+											setPlanType("");
+											setSelectedChain("");
+											setPlanDescription("");
+											setErrors([]);
+										}}
+										className="flex-1 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition-colors"
+									>
+										Create Another Plan
+									</button>
+									<button
+										onClick={() => setActiveTab("plans")}
+										className="flex-1 px-4 py-2 rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 text-white font-medium hover:opacity-90 transition-opacity"
+									>
+										View My Plans
+									</button>
+								</div>
+							</>
+						)}
 					</GlowCard>
 				)}
 
 				{activeTab === "plans" && (
 					<GlowCard className="w-full">
+						{/* Import Plan Section */}
+						{importMode && (
+							<div className="mb-6 p-4 rounded-xl bg-white/5 border border-white/10">
+								<h3 className="text-lg font-medium mb-4">Import Plan</h3>
+								<div className="space-y-4">
+									<div>
+										<label className="block text-sm font-medium text-white/60 mb-2">Import Code</label>
+										<input
+											type="text"
+											value={importCode}
+											onChange={(e) => setImportCode(e.target.value)}
+											placeholder="Paste your import code here..."
+											className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+										/>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-white/60 mb-2">Plan Name</label>
+										<input
+											type="text"
+											value={importPlanName}
+											onChange={(e) => setImportPlanName(e.target.value)}
+											placeholder="Enter a name for this plan..."
+											className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+										/>
+									</div>
+									<div className="flex gap-3">
+										<button
+											onClick={handleImportPlan}
+											className="px-4 py-2 rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 text-white font-medium hover:opacity-90 transition-opacity"
+										>
+											Import Plan
+										</button>
+										<button
+											onClick={() => {
+												setImportMode(false);
+												setImportCode("");
+												setImportPlanName("");
+											}}
+											className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition-colors"
+										>
+											Cancel
+										</button>
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* Plans Header */}
+						<div className="flex items-center justify-between mb-6">
+							<h2 className="text-xl font-semibold">My Plans</h2>
+							<button
+								onClick={() => setImportMode(!importMode)}
+								className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition-colors"
+							>
+								{importMode ? "Cancel Import" : "Import Plan"}
+							</button>
+						</div>
+
 						{plans.length === 0 ? (
 							<div className="text-center py-12">
 								<p className="text-white/60">No plans yet. Create your first one!</p>
@@ -587,7 +821,7 @@ export default function Dashboard() {
 											<th className="text-left py-4 px-4 font-medium text-white/80">Description</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Type</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Details</th>
-											<th className="text-right py-4 px-4 font-medium text-white/80">Action</th>
+											<th className="text-right py-4 px-4 font-medium text-white/80">Actions</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -620,15 +854,23 @@ export default function Dashboard() {
 													)}
 												</td>
 												<td className="py-4 px-4 text-right">
-													{plan.type === "sending" && (
+													<div className="flex items-center justify-end gap-2">
+														{plan.type === "sending" && (
+															<button
+																onClick={() => handleFundPlan(plan.id)}
+																className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 hover:scale-105 active:scale-95 cursor-pointer"
+																disabled={!setShowDynamicUserProfile}
+															>
+																Fund
+															</button>
+														)}
 														<button
-															onClick={() => handleFundPlan(plan.id)}
-															className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 hover:scale-105 active:scale-95 cursor-pointer"
-															disabled={!setShowDynamicUserProfile}
+															onClick={() => handleDeletePlan(plan.id)}
+															className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-red-500/20 border border-red-500/30 px-3 py-1.5 text-sm font-medium text-red-300 shadow-sm transition-all hover:bg-red-500/30 hover:scale-105 active:scale-95 cursor-pointer"
 														>
-															Fund
+															Delete
 														</button>
-													)}
+													</div>
 												</td>
 											</tr>
 										))}
