@@ -58,6 +58,11 @@ export default function Dashboard() {
 		console.log("Funding plan:", planId);
 	}
 
+	// Get user display name from Dynamic
+	const displayName = user?.username || 
+		user?.email?.split('@')[0] ||
+		"User";
+
 	return (
 		<main className="relative min-h-screen flex flex-col items-stretch justify-between overflow-hidden bg-[#0a0a0a] text-white">
 			{/* Background visuals */}
@@ -66,7 +71,7 @@ export default function Dashboard() {
 			<div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-700/20 blur-3xl animate-blob-delayed" />
 
 			<header className="relative z-10 flex items-center justify-between max-w-screen-lg mx-auto w-full px-6 pt-6">
-				<h1 className="text-2xl font-semibold">Dashboard</h1>
+				<h1 className="text-2xl font-semibold">Hey, {displayName}!</h1>
 				<LoginButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors backdrop-blur-md shadow-sm" />
 			</header>
 
