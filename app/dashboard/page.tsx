@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { useState, useEffect } from "react";
+import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { useRouter } from "next/navigation";
 import LoginButton from "@/components/LoginButton";
 import SpeechInput from "@/components/SpeechInput";
@@ -16,8 +16,12 @@ type Plan = {
 };
 
 export default function Dashboard() {
-	const { user } = useDynamicContext();
+	const { user, setShowDynamicUserProfile } = useDynamicContext();
 	const router = useRouter();
+	
+	// Debug logging
+	console.log("Dashboard render - user:", !!user, "setShowDynamicUserProfile:", !!setShowDynamicUserProfile);
+	
 	const [activeTab, setActiveTab] = useState<"create" | "plans">("create");
 	const [plans, setPlans] = useState<Plan[]>([
 		{
@@ -37,8 +41,14 @@ export default function Dashboard() {
 	]);
 
 	// Redirect if not logged in
+	useEffect(() => {
+		if (!user) {
+			router.push("/");
+		}
+	}, [user, router]);
+
+	// Don't render if user is not logged in (will redirect)
 	if (!user) {
-		router.push("/");
 		return null;
 	}
 
@@ -54,8 +64,16 @@ export default function Dashboard() {
 	}
 
 	function handleFundPlan(planId: string) {
-		// TODO: Implement funding logic
-		console.log("Funding plan:", planId);
+		console.log("Fund button clicked for plan:", planId);
+		console.log("setShowDynamicUserProfile available:", !!setShowDynamicUserProfile);
+		
+		// Open Dynamic user profile which contains funding options
+		if (setShowDynamicUserProfile) {
+			setShowDynamicUserProfile(true);
+		} else {
+			console.error("setShowDynamicUserProfile is not available");
+			alert("Funding options not available. Please try again or contact support.");
+		}
 	}
 
 	// Get user display name from Dynamic
@@ -116,56 +134,67 @@ export default function Dashboard() {
 				)}
 
 				{activeTab === "plans" && (
-					<div className="space-y-4">
+					<GlowCard className="w-full">
 						{plans.length === 0 ? (
-							<GlowCard className="w-full text-center py-12">
+							<div className="text-center py-12">
 								<p className="text-white/60">No plans yet. Create your first one!</p>
-							</GlowCard>
+							</div>
 						) : (
-							plans.map((plan) => (
-								<GlowCard key={plan.id} className="w-full">
-									<div className="flex items-center justify-between">
-										<div className="flex-1">
-											<div className="flex items-center gap-3 mb-2">
-												<h3 className="font-semibold">{plan.name}</h3>
-												<span
-													className={`px-2 py-1 rounded-full text-xs font-medium ${
-														plan.type === "sending"
-															? "bg-red-500/20 text-red-300"
-															: "bg-green-500/20 text-green-300"
-													}`}
-												>
-													{plan.type === "sending" ? "Sending" : "Receiving"}
-												</span>
-												<span
-													className={`px-2 py-1 rounded-full text-xs font-medium ${
-														plan.status === "active"
-															? "bg-blue-500/20 text-blue-300"
-															: plan.status === "completed"
-															? "bg-gray-500/20 text-gray-300"
-															: "bg-yellow-500/20 text-yellow-300"
-													}`}
-												>
-													{plan.status}
-												</span>
-											</div>
-											<p className="text-white/70 text-sm">{plan.description}</p>
-										</div>
-										{plan.type === "sending" && plan.status === "draft" && (
-											<button
-												onClick={() => handleFundPlan(plan.id)}
-												className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
-											>
-												Fund
-											</button>
-										)}
-									</div>
-								</GlowCard>
-							))
+							<div className="overflow-x-auto">
+								<table className="w-full">
+									<thead>
+										<tr className="border-b border-white/10">
+											<th className="text-left py-4 px-4 font-medium text-white/80">Plan</th>
+											<th className="text-left py-4 px-4 font-medium text-white/80">Description</th>
+											<th className="text-left py-4 px-4 font-medium text-white/80">Type</th>
+											<th className="text-right py-4 px-4 font-medium text-white/80">Action</th>
+										</tr>
+									</thead>
+									<tbody>
+										{plans.map((plan) => (
+											<tr key={plan.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+												<td className="py-4 px-4">
+													<span className="font-medium">{plan.name}</span>
+												</td>
+												<td className="py-4 px-4">
+													<span className="text-white/70 text-sm">{plan.description}</span>
+												</td>
+												<td className="py-4 px-4">
+													<span
+														className={`px-3 py-1 rounded-full text-xs font-medium ${
+															plan.type === "sending"
+																? "bg-red-500/20 text-red-300"
+																: "bg-green-500/20 text-green-300"
+														}`}
+													>
+														{plan.type === "sending" ? "Sending" : "Receiving"}
+													</span>
+												</td>
+												<td className="py-4 px-4 text-right">
+													{plan.type === "sending" && (
+														<button
+															onClick={() => handleFundPlan(plan.id)}
+															className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 hover:scale-105 active:scale-95 cursor-pointer"
+															disabled={!setShowDynamicUserProfile}
+														>
+															Fund
+														</button>
+													)}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
 						)}
-					</div>
+					</GlowCard>
 				)}
 			</section>
+			
+			{/* Hidden Dynamic Widget for funding options */}
+			<div className="hidden">
+				<DynamicWidget />
+			</div>
 		</main>
 	);
 }
