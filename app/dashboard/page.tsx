@@ -144,18 +144,8 @@ export default function Dashboard() {
 		return null;
 	}
 
+	// Wrapper function that calls the API route to parse payment plan descriptions
 	async function parsePaymentPlan(description: string): Promise<PaymentPlanData> {
-		const prompt = `Parse this payment plan description and extract the following information in JSON format:
-		Description: "${description}"
-		
-		Return only a JSON object with these fields:
-		- frequency: How often payments occur (e.g., "daily", "weekly", "monthly", "every 3 days")
-		- amountPerTransaction: Amount per payment (e.g., "0.1 ETH", "$50", "100 USDC")
-		- startTime: When to start (default to "now" if not specified)
-		- endTime: When to end (e.g., "3 weeks", "1 month", "until cancelled")
-		
-		Example response: {"frequency": "weekly", "amountPerTransaction": "0.1 ETH", "startTime": "now", "endTime": "3 weeks"}`;
-
 		try {
 			const response = await fetch('/api/parse-payment-plan', {
 				method: 'POST',
