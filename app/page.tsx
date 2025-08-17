@@ -1,8 +1,13 @@
 "use client";
 
 import SpeechInput from "@/components/SpeechInput";
+import GlowCard from "@/components/GlowCard";
+import TypewriterExamples from "@/components/TypewriterExamples";
+import { useState } from "react";
 
 export default function Home() {
+	const [example, setExample] = useState<string>("Rent, but split into tiny bites");
+
 	function handleSubmit(value: string) {
 		// TODO: route to generation page or call API
 		console.log("Generate for:", value);
@@ -26,24 +31,26 @@ export default function Home() {
 			</header>
 
 			<section className="relative z-10 flex-1 flex flex-col items-start justify-center max-w-screen-sm mx-auto w-full gap-6 px-6">
-				<div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl shadow-[0_0_1px_0_rgba(255,255,255,0.2),0_20px_60px_-15px_rgba(0,0,0,0.6)]">
-					<h1 className="text-4xl font-semibold tracking-tight sm:text-5xl leading-tight">
-						Hey User,
-						<br />
-						how do you want to pay?
+				<GlowCard className="w-full">
+					<h1 className="text-3xl sm:text-4xl font-semibold tracking-tight leading-tight">
+						Generate custom plans to <br /> pay and get paid.
 					</h1>
 
-					<div className="mt-4">
+					<div className="mt-8">
 						<SpeechInput
 							className="mt-2"
-							placeholder="e.g. Split 0.1 ETH over 3 weeks for rent"
-							hintText="Press enter to generate a payment plan"
+							value={example}
+							placeholder=""
+							hintText=""
 							nextLabel="Next"
 							onSubmit={handleSubmit}
 							showNextButton
+							readOnly
+							showMic={false}
 						/>
+						<TypewriterExamples className="sr-only" onTextChange={setExample} />
 					</div>
-				</div>
+				</GlowCard>
 			</section>
 
 			<footer className="relative z-10 max-w-screen-sm mx-auto w-full text-center text-xs text-white/60 px-6 pb-6">

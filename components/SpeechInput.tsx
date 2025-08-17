@@ -11,6 +11,8 @@ export default function SpeechInput({
 	hintText = "Tap the mic and say: “Split 0.1 ETH over 3 weeks for rent…”",
 	className = "",
 	showNextButton = true,
+	readOnly = false,
+	showMic = true,
 }: {
 	value?: string;
 	onChange?: (next: string) => void;
@@ -20,6 +22,8 @@ export default function SpeechInput({
 	hintText?: string;
 	className?: string;
 	showNextButton?: boolean;
+	readOnly?: boolean;
+	showMic?: boolean;
 }) {
 	const [inputValue, setInputValue] = useState<string>(value ?? "");
 	const [isListening, setIsListening] = useState<boolean>(false);
@@ -34,7 +38,7 @@ export default function SpeechInput({
 
 	// Initialize recognition when available
 	useEffect(() => {
-		if (!isSpeechAvailable) return;
+		if (!isSpeechAvailable || !showMic) return;
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 		const recognition = new SR();
 		recognition.lang = "en-US";
@@ -64,19 +68,20 @@ export default function SpeechInput({
 			recognition.stop?.();
 			recognitionRef.current = null;
 		};
-	}, [isSpeechAvailable, onChange]);
+	}, [isSpeechAvailable, onChange, showMic]);
 
 	useEffect(() => {
 		if (value !== undefined) setInputValue(value);
 	}, [value]);
 
 	function handleManualChange(e: React.ChangeEvent<HTMLInputElement>) {
+		if (readOnly) return;
 		setInputValue(e.target.value);
 		onChange?.(e.target.value);
 	}
 
 	function submit() {
-		const trimmed = inputValue.trim();
+		const trimmed = (value ?? inputValue).trim();
 		if (!trimmed) return;
 		onSubmit?.(trimmed);
 	}
@@ -89,7 +94,7 @@ export default function SpeechInput({
 	}
 
 	function toggleListening() {
-		if (!isSpeechAvailable) {
+		if (!isSpeechAvailable || !showMic) {
 			alert("Speech recognition isn’t supported in this browser. Try Chrome on Android or Safari on iOS.");
 			return;
 		}
@@ -107,38 +112,44 @@ export default function SpeechInput({
 		}
 	}
 
+	const displayValue = value !== undefined ? value : inputValue;
+
 	return (
 		<div className={`w-full ${className}`}>
 			<div className="flex items-center gap-2 rounded-2xl border border-black/10 dark:border-white/15 bg-white/70 dark:bg-white/10 backdrop-blur-md p-2 shadow-md">
 				<input
 					type="text"
-					value={inputValue}
+					value={displayValue}
 					onChange={handleManualChange}
 					onKeyDown={handleKeyDown}
 					placeholder={placeholder}
-					className="flex-1 bg-transparent px-3 py-3 text-base placeholder-black/40 dark:placeholder-white/50 focus:outline-none"
+					className={`flex-1 bg-transparent px-3 py-3 text-base placeholder-black/40 dark:placeholder-white/50 focus:outline-none ${readOnly ? "caret-transparent cursor-default" : ""}`}
 					inputMode="text"
 					aria-label="Describe how you want to pay"
+					readOnly={readOnly}
+					aria-readonly={readOnly}
 				/>
-				<button
-					type="button"
-					onClick={toggleListening}
-					aria-pressed={isListening}
-					className={`relative inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${isListening ? "bg-rose-500 text-white" : "bg-black/90 text-white dark:bg-white/90 dark:text-black"}`}
-					title={isSpeechAvailable ? (isListening ? "Stop listening" : "Speak") : "Speech not supported"}
-				>
-					{isListening && (
-						<span className="absolute -inset-1 rounded-2xl animate-ping bg-rose-500/40" />
-					)}
-					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
-						<path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V20h3a 1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" />
-					</svg>
-				</button>
+				{showMic && (
+					<button
+						type="button"
+						onClick={toggleListening}
+						aria-pressed={isListening}
+						className={`relative inline-flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${isListening ? "bg-rose-500 text-white" : "bg-black/90 text-white dark:bg-white/90 dark:text-black"}`}
+						title={isSpeechAvailable ? (isListening ? "Stop listening" : "Speak") : "Speech not supported"}
+					>
+						{isListening && (
+							<span className="absolute -inset-1 rounded-2xl animate-ping bg-rose-500/40" />
+						)}
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+							<path d="M12 14a3 3 0 0 0 3-3V7a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3Zm5-3a1 1 0 1 1 2 0 7 7 0 0 1-6 6.92V20h3a 1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.08A7 7 0 0 1 5 11a1 1 0 1 1 2 0 5 5 0 1 0 10 0Z" />
+						</svg>
+					</button>
+				)}
 				{showNextButton && (
 					<button
 						type="button"
 						onClick={submit}
-						disabled={!inputValue.trim()}
+						disabled={!displayValue.trim()}
 						className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-4 text-[15px] font-medium text-white shadow-sm transition-opacity disabled:opacity-50"
 					>
 						{nextLabel}
