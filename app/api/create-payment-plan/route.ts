@@ -59,30 +59,43 @@ export async function POST(request: NextRequest) {
     if (planType === 'receiving') {
       console.log('🔄 Create Payment Plan API - Creating server wallet for receiver plan');
       
-      const walletResponse = await fetch(`${request.nextUrl.origin}/api/create-server-wallet`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          chain,
-        }),
-      });
+      // Get Supabase configuration
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      if (!walletResponse.ok) {
-        const errorText = await walletResponse.text();
-        console.log('❌ Create Payment Plan API - Wallet creation failed:', {
-          status: walletResponse.status,
-          error: errorText,
-        });
-        // Continue without wallet address if creation fails
-        console.log('⚠️ Create Payment Plan API - Continuing without wallet address');
+      if (!supabaseUrl || !supabaseAnonKey) {
+        console.log('❌ Create Payment Plan API - Error: Supabase configuration missing');
+        // Continue without wallet if Supabase not configured
       } else {
-        const walletResult = await walletResponse.json();
-        if (walletResult.success && walletResult.walletAddress) {
-          parsedPlan.walletAddress = walletResult.walletAddress;
-          console.log('✅ Create Payment Plan API - Wallet created:', walletResult.walletAddress);
+        // Call the Supabase Edge Function directly
+        const supabaseFunctionUrl = `${supabaseUrl}/functions/v1/create-server-wallet`;
+        
+        const walletResponse = await fetch(supabaseFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId,
+            chain,
+          }),
+        });
+
+        if (!walletResponse.ok) {
+          const errorText = await walletResponse.text();
+          console.log('❌ Create Payment Plan API - Wallet creation failed:', {
+            status: walletResponse.status,
+            error: errorText,
+          });
+          // Continue without wallet address if creation fails
+          console.log('⚠️ Create Payment Plan API - Continuing without wallet address');
+        } else {
+          const walletResult = await walletResponse.json();
+          if (walletResult.success && walletResult.walletAddress) {
+            parsedPlan.walletAddress = walletResult.walletAddress;
+            console.log('✅ Create Payment Plan API - Wallet created:', walletResult.walletAddress);
+          }
         }
       }
     }
