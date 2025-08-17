@@ -19,6 +19,7 @@ type Plan = {
 	endTime?: number; // Unix timestamp in seconds
 	chain?: string;
 	title?: string; // AI generated title
+	serverWalletAddress?: string; // Server wallet address for receiver plans
 };
 
 type PaymentPlanData = {
@@ -231,9 +232,12 @@ export default function Dashboard() {
 		const startTime = creationTime + editablePlanData.startTimeOffset;
 		const endTime = creationTime + editablePlanData.endTimeOffset;
 
+		const planId = Date.now().toString();
+		const planName = editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : "");
+
 		const newPlan: Plan = {
-			id: Date.now().toString(),
-			name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
+			id: planId,
+			name: planName,
 			type: planType as "sending" | "receiving",
 			description: planDescription,
 			status: "draft",
@@ -245,12 +249,49 @@ export default function Dashboard() {
 			title: editablePlanData.title,
 		};
 
+		// Create server wallet for receiver-type plans
+		if (planType === "receiving" && selectedChain) {
+			try {
+				console.log("Creating server wallet for receiver plan...");
+				const response = await fetch('/api/create-server-wallet', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						chain: selectedChain,
+						planId: planId,
+						planName: planName,
+					}),
+				});
+
+				if (response.ok) {
+					const walletData = await response.json();
+					newPlan.serverWalletAddress = walletData.walletAddress;
+					console.log("Server wallet created successfully:", walletData.walletAddress);
+				} else {
+					const errorData = await response.json();
+					console.error("Failed to create server wallet:", errorData);
+					// Continue with plan creation even if wallet creation fails
+				}
+			} catch (error) {
+				console.error("Error creating server wallet:", error);
+				// Continue with plan creation even if wallet creation fails
+			}
+		}
+
 		setPlans([newPlan, ...plans]);
 		
 		// Generate code with number mappings
 		const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
 		const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
-		const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
+		
+		// Include server wallet address in code for receiver plans
+		let code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
+		
+		if (planType === "receiving" && newPlan.serverWalletAddress) {
+			code += `;${newPlan.serverWalletAddress}`;
+		}
 		
 		// Store the code and go to Step 3
 		const planDataWithCode = { ...editablePlanData, code };
@@ -296,13 +337,13 @@ export default function Dashboard() {
 		}
 
 		const parts = importCode.split(';');
-		if (parts.length !== 8) {
+		if (parts.length < 8 || parts.length > 9) {
 			alert("Invalid import code format. Please check the code and try again.");
 			return;
 		}
 
 		try {
-			const [frequency, amountPerTransaction, totalAmount, numberOfTransactions, startTime, endTime, typeNumber, chainNumber] = parts;
+			const [frequency, amountPerTransaction, totalAmount, numberOfTransactions, startTime, endTime, typeNumber, chainNumber, serverWalletAddress] = parts;
 			
 			// Convert numbers back to strings using reverse mappings
 			const planType = PLAN_TYPE_REVERSE_MAP[Number(typeNumber) as keyof typeof PLAN_TYPE_REVERSE_MAP];
@@ -325,6 +366,7 @@ export default function Dashboard() {
 				endTime: Number(endTime),
 				chain: chain || undefined,
 				title: importPlanName,
+				serverWalletAddress: serverWalletAddress || undefined,
 			};
 
 			setPlans([newPlan, ...plans]);
@@ -703,7 +745,10 @@ export default function Dashboard() {
 									<div className="mb-4">
 										<label className="block text-sm font-medium text-white/60 mb-2">Code Format</label>
 										<p className="text-xs text-white/40 font-mono">
-											frequency;amountPerTransaction;totalAmount;numberOfTransactions;startTime;endTime;planType;chain
+											frequency;amountPerTransaction;totalAmount;numberOfTransactions;startTime;endTime;planType;chain[;serverWalletAddress]
+										</p>
+										<p className="text-xs text-white/40 mt-1">
+											* Server wallet address is included for receiver-type plans
 										</p>
 									</div>
 
@@ -852,6 +897,12 @@ export default function Dashboard() {
 															<div>{formatFrequency(plan.frequency)} • {plan.amountPerTransaction}</div>
 															<div>{formatTimestamp(plan.startTime)} → {formatTimestamp(plan.endTime)}</div>
 															{plan.chain && <div>Chain: {plan.chain}</div>}
+															{plan.type === "receiving" && plan.serverWalletAddress && (
+																<div className="mt-1">
+																	<span className="text-green-300">Server Wallet:</span>
+																	<div className="font-mono text-xs break-all">{plan.serverWalletAddress}</div>
+																</div>
+															)}
 														</div>
 													)}
 												</td>

@@ -9,26 +9,29 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.4.6",
-    "viem": "*",
-    "@dynamic-labs/sdk-react-core": "*",
+    "@dynamic-labs-wallet/node": "^0.0.137",
+    "@dynamic-labs-wallet/node-evm": "^0.0.137",
+    "@dynamic-labs-wallet/node-svm": "^0.0.137",
     "@dynamic-labs/algorand": "*",
     "@dynamic-labs/bitcoin": "*",
     "@dynamic-labs/cosmos": "*",
     "@dynamic-labs/ethereum": "*",
     "@dynamic-labs/flow": "*",
+    "@dynamic-labs/sdk-react-core": "*",
     "@dynamic-labs/solana": "*",
     "@dynamic-labs/starknet": "*",
-    "@dynamic-labs/sui": "*"
+    "@dynamic-labs/sui": "*",
+    "next": "15.4.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "viem": "*"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
