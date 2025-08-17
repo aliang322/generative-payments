@@ -11,7 +11,7 @@ import { StarknetWalletConnectors } from "@dynamic-labs/starknet";
 import { SuiWalletConnectors } from "@dynamic-labs/sui";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-	const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENV_ID || "REPLACE-WITH-YOUR-ENVIRONMENT-ID";
+	const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENV_ID || "";
 	return (
 		<DynamicContextProvider
 			settings={{

@@ -3,11 +3,17 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
 export default function LoginButton({ className = "" }: { className?: string }) {
-	const { user, setShowAuthFlow } = useDynamicContext();
+	const { user, setShowAuthFlow, handleLogOut } = useDynamicContext();
+	
 	function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
 		e.preventDefault();
-		setShowAuthFlow(true);
+		if (user) {
+			handleLogOut();
+		} else {
+			setShowAuthFlow(true);
+		}
 	}
+	
 	return (
 		<a
 			href="#login"
@@ -15,7 +21,7 @@ export default function LoginButton({ className = "" }: { className?: string }) 
 			className={className}
 		>
 			<span className="i-heroicons-user text-base" aria-hidden />
-			{user ? "Account" : "Login"}
+			{user ? "Logout" : "Login"}
 		</a>
 	);
 }
