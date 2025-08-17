@@ -1,0 +1,13 @@
+# Ignore Supabase functions (they run on Supabase Edge Runtime, not Vercel)
+supabase/functions/
+
+# Ignore Supabase migrations (they run on Supabase, not Vercel)
+supabase/migrations/
+
+# Ignore Supabase config
+supabase/config.toml
+
+# Ignore other development files
+.env.local
+.env.example
+.env.template

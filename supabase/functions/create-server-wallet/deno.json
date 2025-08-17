@@ -1,0 +1,11 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "@dynamic-labs-wallet/node-evm": "https://esm.sh/@dynamic-labs-wallet/node-evm@0.0.137",
+    "@dynamic-labs-wallet/node": "https://esm.sh/@dynamic-labs-wallet/node@0.0.137"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window", "dom"],
+    "types": ["https://deno.land/x/types/react/index.d.ts"]
+  }
+}
