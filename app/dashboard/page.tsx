@@ -13,7 +13,32 @@ type Plan = {
 	type: "sending" | "receiving";
 	description: string;
 	status: "draft" | "active" | "completed";
+	frequency?: number; // in seconds
+	amountPerTransaction?: number; // unitless
+	startTime?: number; // Unix timestamp in seconds
+	endTime?: number; // Unix timestamp in seconds
+	chain?: string;
+	title?: string; // AI generated title
 };
+
+type PaymentPlanData = {
+	title: string; // concise title
+	frequency: number; // in seconds
+	amountPerTransaction: number; // unitless
+	totalAmount: number; // unitless
+	numberOfTransactions: number; // integer
+	startTime: number; // Unix timestamp in seconds
+	endTime: number; // Unix timestamp in seconds
+};
+
+const CHAINS = [
+	{ id: "ethereum", name: "Ethereum", icon: "🔷" },
+	{ id: "solana", name: "Solana", icon: "🟣" },
+	{ id: "polygon", name: "Polygon", icon: "🟣" },
+	{ id: "base", name: "Base", icon: "🔵" },
+	{ id: "arbitrum", name: "Arbitrum", icon: "🔵" },
+	{ id: "optimism", name: "Optimism", icon: "🔴" },
+];
 
 export default function Dashboard() {
 	const { user, setShowDynamicUserProfile } = useDynamicContext();
@@ -23,6 +48,7 @@ export default function Dashboard() {
 	console.log("Dashboard render - user:", !!user, "setShowDynamicUserProfile:", !!setShowDynamicUserProfile);
 	
 	const [activeTab, setActiveTab] = useState<"create" | "plans">("create");
+	const [createStep, setCreateStep] = useState<1 | 2>(1);
 	const [plans, setPlans] = useState<Plan[]>([
 		{
 			id: "1",
@@ -40,6 +66,36 @@ export default function Dashboard() {
 		},
 	]);
 
+	// Form state
+	const [planType, setPlanType] = useState<"sending" | "receiving" | "">("");
+	const [selectedChain, setSelectedChain] = useState<string>("");
+
+	// Update warnings when form fields change
+	useEffect(() => {
+		const validation = validateForm();
+		setWarnings(validation.warnings);
+	}, [planType, selectedChain]);
+	const [planDescription, setPlanDescription] = useState<string>("");
+	const [isGenerating, setIsGenerating] = useState<boolean>(false);
+	const [warnings, setWarnings] = useState<string[]>([]);
+	const [errors, setErrors] = useState<string[]>([]);
+	const [generatedPlanData, setGeneratedPlanData] = useState<PaymentPlanData | null>(null);
+	const [editablePlanData, setEditablePlanData] = useState<PaymentPlanData | null>(null);
+
+	// Validation function
+	function validateForm(): { isValid: boolean; warnings: string[] } {
+		const warnings: string[] = [];
+
+		if (!planType) {
+			warnings.push("Please select whether you're sending or receiving");
+		}
+		if (planType === "receiving" && !selectedChain) {
+			warnings.push("Please select a chain for receiving payments");
+		}
+
+		return { isValid: warnings.length === 0, warnings };
+	}
+
 	// Redirect if not logged in
 	useEffect(() => {
 		if (!user) {
@@ -52,15 +108,133 @@ export default function Dashboard() {
 		return null;
 	}
 
-	function handleCreatePlan(description: string) {
+	async function parsePaymentPlan(description: string): Promise<PaymentPlanData> {
+		const prompt = `Parse this payment plan description and extract the following information in JSON format:
+		Description: "${description}"
+		
+		Return only a JSON object with these fields:
+		- frequency: How often payments occur (e.g., "daily", "weekly", "monthly", "every 3 days")
+		- amountPerTransaction: Amount per payment (e.g., "0.1 ETH", "$50", "100 USDC")
+		- startTime: When to start (default to "now" if not specified)
+		- endTime: When to end (e.g., "3 weeks", "1 month", "until cancelled")
+		
+		Example response: {"frequency": "weekly", "amountPerTransaction": "0.1 ETH", "startTime": "now", "endTime": "3 weeks"}`;
+
+		try {
+			const response = await fetch('/api/parse-payment-plan', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ description }),
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to parse payment plan');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error parsing payment plan:', error);
+			// Fallback parsing
+			const now = Math.floor(Date.now() / 1000);
+			const thirtyDaysFromNow = now + (30 * 24 * 60 * 60);
+			return {
+				title: "Weekly Payment Plan",
+				frequency: 604800, // Weekly in seconds
+				amountPerTransaction: 0.1,
+				totalAmount: 0.5,
+				numberOfTransactions: 5,
+				startTime: now,
+				endTime: thirtyDaysFromNow
+			};
+		}
+	}
+
+	async function handleGeneratePlan(description: string) {
+		const validation = validateForm();
+		setWarnings(validation.warnings);
+		setErrors([]); // Clear any previous errors
+
+		if (!validation.isValid) {
+			return;
+		}
+
+		setIsGenerating(true);
+		setPlanDescription(description);
+
+		try {
+			// Parse the payment plan using OpenAI
+			const parsedData = await parsePaymentPlan(description);
+			
+			// Check if AI couldn't extract critical information
+			const failedFields: string[] = [];
+			
+			if (parsedData.frequency === -1) failedFields.push("frequency");
+			if (parsedData.amountPerTransaction === -1) failedFields.push("amount per transaction");
+			if (parsedData.numberOfTransactions === -1) failedFields.push("number of transactions");
+			if (parsedData.totalAmount === -1) failedFields.push("total amount");
+			
+			if (failedFields.length > 0) {
+				const fieldList = failedFields.join(", ");
+				setErrors([`Try again, our AI couldn't understand: ${fieldList}`]);
+				setCreateStep(1);
+				// Keep the description text so user can edit it
+				return;
+			}
+			
+			setGeneratedPlanData(parsedData);
+			setEditablePlanData(parsedData);
+			setCreateStep(2);
+		} catch (error) {
+			console.error('Error generating plan:', error);
+			setErrors(["Failed to generate payment plan. Please try again."]);
+		} finally {
+			setIsGenerating(false);
+		}
+	}
+
+	async function handleCreatePlan() {
+		if (!editablePlanData) return;
+
 		const newPlan: Plan = {
 			id: Date.now().toString(),
-			name: description.slice(0, 30) + (description.length > 30 ? "..." : ""),
-			type: description.toLowerCase().includes("pay") ? "sending" : "receiving",
-			description,
+			name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
+			type: planType as "sending" | "receiving",
+			description: planDescription,
 			status: "draft",
+			frequency: editablePlanData.frequency,
+			amountPerTransaction: editablePlanData.amountPerTransaction,
+			startTime: editablePlanData.startTime,
+			endTime: editablePlanData.endTime,
+			chain: selectedChain,
+			title: editablePlanData.title,
 		};
+
 		setPlans([newPlan, ...plans]);
+		
+		// Reset form and go back to step 1
+		setPlanType("");
+		setSelectedChain("");
+		setPlanDescription("");
+		setGeneratedPlanData(null);
+		setEditablePlanData(null);
+		setCreateStep(1);
+	}
+
+	function handleFieldEdit(field: keyof PaymentPlanData, value: number | string) {
+		if (!editablePlanData) return;
+		
+		const updatedData = { ...editablePlanData, [field]: value };
+		
+		// Recalculate total amount if amount per transaction or number of transactions changed
+		if (field === 'amountPerTransaction' || field === 'numberOfTransactions') {
+			updatedData.totalAmount = updatedData.amountPerTransaction * updatedData.numberOfTransactions;
+		}
+		
+		setEditablePlanData(updatedData);
+		console.log(`🔧 Field edited: ${field} = ${value}`, updatedData);
 	}
 
 	function handleFundPlan(planId: string) {
@@ -74,6 +248,31 @@ export default function Dashboard() {
 			console.error("setShowDynamicUserProfile is not available");
 			alert("Funding options not available. Please try again or contact support.");
 		}
+	}
+
+	// Helper functions to format data
+	function formatFrequency(seconds: number): string {
+		if (seconds < 60) return `${seconds}s`;
+		if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+		if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+		if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
+		if (seconds < 2592000) return `${Math.floor(seconds / 604800)}w`;
+		return `${Math.floor(seconds / 2592000)}mo`;
+	}
+
+	function formatTimestamp(timestamp: number): string {
+		const date = new Date(timestamp * 1000);
+		return date.toLocaleDateString();
+	}
+
+	function formatTimestampWithTime(timestamp: number): string {
+		const date = new Date(timestamp * 1000);
+		return `${date.toLocaleDateString()} ${date.toLocaleTimeString('en-US', { 
+			hour12: false, 
+			hour: '2-digit', 
+			minute: '2-digit',
+			second: '2-digit'
+		})}`;
 	}
 
 	// Get user display name from Dynamic
@@ -121,15 +320,255 @@ export default function Dashboard() {
 				{/* Tab Content */}
 				{activeTab === "create" && (
 					<GlowCard className="w-full">
-						<h2 className="text-xl font-semibold mb-4">Create a New Payment Plan</h2>
-						<SpeechInput
-							placeholder="Describe your payment plan..."
-							hintText="Press enter to generate"
-							nextLabel="Generate"
-							onSubmit={handleCreatePlan}
-							showNextButton
-							showMic
-						/>
+						{/* Loading state - full screen overlay */}
+						{isGenerating && (
+							<div className="absolute inset-0 bg-black/80 backdrop-blur-sm rounded-2xl flex items-center justify-center z-50">
+								<div className="text-center">
+									<div className="relative mb-6">
+										<div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto"></div>
+										<div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-cyan-400 rounded-full animate-spin mx-auto" style={{ animationDelay: '-0.5s' }}></div>
+									</div>
+									<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+										Generating Payment Plan
+									</h3>
+									<p className="text-white/60 text-sm">AI is analyzing your description...</p>
+								</div>
+							</div>
+						)}
+
+						{/* Step indicator */}
+						<div className="flex items-center gap-2 mb-6">
+							<div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+								createStep >= 1 ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/60'
+							}`}>
+								1
+							</div>
+							<div className={`flex-1 h-px ${
+								createStep >= 2 ? 'bg-blue-500' : 'bg-white/10'
+							}`} />
+							<div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+								createStep >= 2 ? 'bg-blue-500 text-white' : 'bg-white/10 text-white/60'
+							}`}>
+								2
+							</div>
+						</div>
+
+						{createStep === 1 && !isGenerating && (
+							<>
+								<h2 className="text-xl font-semibold mb-4">Generate a New Payment Plan</h2>
+								
+								{/* Validation Warnings */}
+								{warnings.length > 0 && (
+									<div className="mb-4 p-3 rounded-xl bg-yellow-500/20 border border-yellow-500/30">
+										{warnings.map((warning, index) => (
+											<p key={index} className="text-yellow-300 text-sm">⚠️ {warning}</p>
+										))}
+									</div>
+								)}
+
+								{/* Error Messages */}
+								{errors.length > 0 && (
+									<div className="mb-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30">
+										{errors.map((error, index) => (
+											<p key={index} className="text-red-300 text-sm">❌ {error}</p>
+										))}
+									</div>
+								)}
+
+								{/* Plan Type and Chain Selection - Horizontal Layout */}
+								<div className="flex gap-4 mb-4">
+									<div className="flex-1">
+										<label className="block text-sm font-medium text-white/80 mb-2">
+											Type
+										</label>
+										<select
+											value={planType}
+											onChange={(e) => setPlanType(e.target.value as "sending" | "receiving" | "")}
+											className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-all hover:bg-white/15"
+										>
+											<option value="" className="text-black bg-white">Select plan type...</option>
+											<option value="sending" className="text-black bg-white">Sending Payments</option>
+											<option value="receiving" className="text-black bg-white">Receiving Payments</option>
+										</select>
+									</div>
+
+									<div className="flex-1">
+										<label className="block text-sm font-medium text-white/80 mb-2">
+											Chain
+										</label>
+										<select
+											value={selectedChain}
+											onChange={(e) => setSelectedChain(e.target.value)}
+											className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-all hover:bg-white/15"
+										>
+											<option value="" className="text-black bg-white">Select chain...</option>
+											{CHAINS.map((chain) => (
+												<option key={chain.id} value={chain.id} className="text-black bg-white">
+													{chain.icon} {chain.name}
+												</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								{/* Description Input */}
+								<div className="mb-4">
+									<label className="block text-sm font-medium text-white/80 mb-2">
+										Payment Plan Description
+									</label>
+									<SpeechInput
+										value={planDescription}
+										onChange={(value) => setPlanDescription(value)}
+										placeholder="Describe your payment plan..."
+										hintText="Press enter to generate"
+										nextLabel={isGenerating ? "Generating..." : "Generate"}
+										onSubmit={handleGeneratePlan}
+										showNextButton
+										showMic
+										readOnly={isGenerating}
+										disabled={!validateForm().isValid}
+									/>
+								</div>
+
+
+							</>
+						)}
+
+						{createStep === 2 && editablePlanData && (
+							<>
+								<h2 className="text-xl font-semibold mb-4">Step 2: Review & Edit Generated Plan</h2>
+								
+								{/* Generated Plan Details */}
+								<div className="mb-6 p-6 rounded-xl bg-white/5 border border-white/10">
+									<h3 className="text-lg font-medium mb-4">Generated Payment Plan</h3>
+									
+									<div className="grid grid-cols-2 gap-4 mb-4">
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Type</label>
+											<span className="text-white font-medium">
+												{planType === "sending" ? "Sending Payments" : "Receiving Payments"}
+											</span>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Chain</label>
+											<span className="text-white font-medium">
+												{selectedChain ? CHAINS.find(c => c.id === selectedChain)?.name || selectedChain : "Not specified"}
+											</span>
+										</div>
+									</div>
+
+									{/* Editable Fields */}
+									<div className="grid grid-cols-2 gap-4 mb-4">
+										<div className="col-span-2">
+											<label className="block text-sm font-medium text-white/60 mb-1">Plan Title</label>
+											<input
+												type="text"
+												value={editablePlanData.title}
+												onChange={(e) => handleFieldEdit('title', e.target.value)}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="Weekly Rent Split"
+												maxLength={50}
+											/>
+											<p className="text-xs text-white/40 mt-1">{editablePlanData.title.length}/50 characters</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Frequency (seconds)</label>
+											<input
+												type="number"
+												value={editablePlanData.frequency}
+												onChange={(e) => handleFieldEdit('frequency', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="86400"
+											/>
+											<p className="text-xs text-white/40 mt-1">{formatFrequency(editablePlanData.frequency)}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Amount Per Transaction</label>
+											<input
+												type="number"
+												step="0.01"
+												value={editablePlanData.amountPerTransaction}
+												onChange={(e) => handleFieldEdit('amountPerTransaction', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="0.1"
+											/>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Number of Transactions</label>
+											<input
+												type="number"
+												value={editablePlanData.numberOfTransactions}
+												onChange={(e) => handleFieldEdit('numberOfTransactions', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="5"
+											/>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Total Amount</label>
+											<input
+												type="number"
+												step="0.01"
+												value={editablePlanData.totalAmount}
+												onChange={(e) => handleFieldEdit('totalAmount', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="0.5"
+											/>
+										</div>
+									</div>
+									
+									<div className="mb-4">
+										<label className="block text-sm font-medium text-white/60 mb-1">Description</label>
+										<p className="text-white/80">{planDescription}</p>
+									</div>
+									
+									<div className="grid grid-cols-2 gap-4">
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">Start Time (Unix timestamp)</label>
+											<input
+												type="number"
+												value={editablePlanData.startTime}
+												onChange={(e) => handleFieldEdit('startTime', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="1704067200"
+											/>
+											<p className="text-xs text-white/40 mt-1">{formatTimestampWithTime(editablePlanData.startTime)}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-white/60 mb-1">End Time (Unix timestamp)</label>
+											<input
+												type="number"
+												value={editablePlanData.endTime}
+												onChange={(e) => handleFieldEdit('endTime', Number(e.target.value))}
+												className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:border-white/40"
+												placeholder="1706659200"
+											/>
+											<p className="text-xs text-white/40 mt-1">{formatTimestampWithTime(editablePlanData.endTime)}</p>
+										</div>
+									</div>
+								</div>
+
+								{/* Action Buttons */}
+								<div className="flex gap-3">
+									<button
+										onClick={() => {
+											setCreateStep(1);
+											setGeneratedPlanData(null);
+											setEditablePlanData(null);
+											setErrors([]); // Clear errors when going back
+										}}
+										className="flex-1 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition-colors"
+									>
+										Back
+									</button>
+									<button
+										onClick={handleCreatePlan}
+										className="flex-1 px-4 py-2 rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 text-white font-medium hover:opacity-90 transition-opacity"
+									>
+										Create Plan
+									</button>
+								</div>
+							</>
+						)}
 					</GlowCard>
 				)}
 
@@ -147,6 +586,7 @@ export default function Dashboard() {
 											<th className="text-left py-4 px-4 font-medium text-white/80">Plan</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Description</th>
 											<th className="text-left py-4 px-4 font-medium text-white/80">Type</th>
+											<th className="text-left py-4 px-4 font-medium text-white/80">Details</th>
 											<th className="text-right py-4 px-4 font-medium text-white/80">Action</th>
 										</tr>
 									</thead>
@@ -169,6 +609,15 @@ export default function Dashboard() {
 													>
 														{plan.type === "sending" ? "Sending" : "Receiving"}
 													</span>
+												</td>
+												<td className="py-4 px-4">
+													{plan.frequency && plan.startTime && plan.endTime && (
+														<div className="text-xs text-white/60">
+															<div>{formatFrequency(plan.frequency)} • {plan.amountPerTransaction}</div>
+															<div>{formatTimestamp(plan.startTime)} → {formatTimestamp(plan.endTime)}</div>
+															{plan.chain && <div>Chain: {plan.chain}</div>}
+														</div>
+													)}
 												</td>
 												<td className="py-4 px-4 text-right">
 													{plan.type === "sending" && (

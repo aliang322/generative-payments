@@ -13,6 +13,7 @@ export default function SpeechInput({
 	showNextButton = true,
 	readOnly = false,
 	showMic = true,
+	disabled = false,
 }: {
 	value?: string;
 	onChange?: (next: string) => void;
@@ -24,6 +25,7 @@ export default function SpeechInput({
 	showNextButton?: boolean;
 	readOnly?: boolean;
 	showMic?: boolean;
+	disabled?: boolean;
 }) {
 	const [inputValue, setInputValue] = useState<string>(value ?? "");
 	const [isListening, setIsListening] = useState<boolean>(false);
@@ -149,7 +151,7 @@ export default function SpeechInput({
 					<button
 						type="button"
 						onClick={submit}
-						disabled={!displayValue.trim()}
+						disabled={disabled || !displayValue.trim()}
 						className="inline-flex h-12 items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-4 text-[15px] font-medium text-white shadow-sm transition-opacity disabled:opacity-50"
 					>
 						{nextLabel}
