@@ -30,6 +30,7 @@ type PaymentPlanData = {
 	startTimeOffset: number; // seconds from now
 	endTimeOffset: number; // seconds from now
 	code?: string; // generated import code
+	walletAddress?: string; // wallet address for receiver plans
 };
 
 const CHAINS = [
@@ -224,38 +225,100 @@ export default function Dashboard() {
 	}
 
 	async function handleCreatePlan() {
-		if (!editablePlanData) return;
+		if (!editablePlanData || !user) return;
 
-		// Store the creation timestamp and convert offsets to actual timestamps
-		const creationTime = Math.floor(Date.now() / 1000);
-		const startTime = creationTime + editablePlanData.startTimeOffset;
-		const endTime = creationTime + editablePlanData.endTimeOffset;
+		try {
+			// Call the new create payment plan API that includes wallet creation for receivers
+			const response = await fetch('/api/create-payment-plan', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					description: planDescription,
+					planType: planType,
+					chain: selectedChain,
+					userId: user.userId || user.id || 'unknown',
+				}),
+			});
 
-		const newPlan: Plan = {
-			id: Date.now().toString(),
-			name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
-			type: planType as "sending" | "receiving",
-			description: planDescription,
-			status: "draft",
-			frequency: editablePlanData.frequency,
-			amountPerTransaction: editablePlanData.amountPerTransaction,
-			startTime: startTime,
-			endTime: endTime,
-			chain: selectedChain,
-			title: editablePlanData.title,
-		};
+			if (!response.ok) {
+				throw new Error(`API error: ${response.status}`);
+			}
 
-		setPlans([newPlan, ...plans]);
-		
-		// Generate code with number mappings
-		const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
-		const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
-		const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
-		
-		// Store the code and go to Step 3
-		const planDataWithCode = { ...editablePlanData, code };
-		setGeneratedPlanData(planDataWithCode);
-		setCreateStep(3);
+			const result = await response.json();
+
+			// Store the creation timestamp and convert offsets to actual timestamps
+			const creationTime = Math.floor(Date.now() / 1000);
+			const startTime = creationTime + editablePlanData.startTimeOffset;
+			const endTime = creationTime + editablePlanData.endTimeOffset;
+
+			const newPlan: Plan = {
+				id: Date.now().toString(),
+				name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
+				type: planType as "sending" | "receiving",
+				description: planDescription,
+				status: "draft",
+				frequency: editablePlanData.frequency,
+				amountPerTransaction: editablePlanData.amountPerTransaction,
+				startTime: startTime,
+				endTime: endTime,
+				chain: selectedChain,
+				title: editablePlanData.title,
+			};
+
+			setPlans([newPlan, ...plans]);
+			
+			// Generate code with number mappings
+			const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
+			const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
+			
+			// Include wallet address in code for receiver plans
+			let code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
+			
+			if (result.walletAddress && planType === 'receiving') {
+				code += `;${result.walletAddress}`;
+				console.log('✅ Dashboard - Wallet address included in export code:', result.walletAddress);
+			}
+			
+			// Store the code and go to Step 3
+			const planDataWithCode = { ...editablePlanData, code, walletAddress: result.walletAddress };
+			setGeneratedPlanData(planDataWithCode);
+			setCreateStep(3);
+
+		} catch (error) {
+			console.error('Error creating payment plan:', error);
+			// Fallback to the old behavior if the new API fails
+			const creationTime = Math.floor(Date.now() / 1000);
+			const startTime = creationTime + editablePlanData.startTimeOffset;
+			const endTime = creationTime + editablePlanData.endTimeOffset;
+
+			const newPlan: Plan = {
+				id: Date.now().toString(),
+				name: editablePlanData.title || planDescription.slice(0, 30) + (planDescription.length > 30 ? "..." : ""),
+				type: planType as "sending" | "receiving",
+				description: planDescription,
+				status: "draft",
+				frequency: editablePlanData.frequency,
+				amountPerTransaction: editablePlanData.amountPerTransaction,
+				startTime: startTime,
+				endTime: endTime,
+				chain: selectedChain,
+				title: editablePlanData.title,
+			};
+
+			setPlans([newPlan, ...plans]);
+			
+			// Generate code with number mappings (fallback without wallet)
+			const planTypeNumber = PLAN_TYPE_MAP[planType as keyof typeof PLAN_TYPE_MAP] || 0;
+			const chainNumber = selectedChain ? CHAIN_MAP[selectedChain as keyof typeof CHAIN_MAP] || 0 : 0;
+			const code = `${editablePlanData.frequency};${editablePlanData.amountPerTransaction};${editablePlanData.totalAmount};${editablePlanData.numberOfTransactions};${startTime};${endTime};${planTypeNumber};${chainNumber}`;
+			
+			// Store the code and go to Step 3
+			const planDataWithCode = { ...editablePlanData, code };
+			setGeneratedPlanData(planDataWithCode);
+			setCreateStep(3);
+		}
 	}
 
 	function handleFieldEdit(field: keyof PaymentPlanData, value: number | string) {

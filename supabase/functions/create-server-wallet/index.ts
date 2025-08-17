@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { DynamicEvmWalletClient } from 'https://esm.sh/@dynamic-labs-wallet/node-evm@0.0.137'
-import { ThresholdSignatureScheme } from 'https://esm.sh/@dynamic-labs-wallet/node@0.0.137'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,28 +20,48 @@ interface WalletResponse {
 }
 
 const BASE_API_URL = 'https://app.dynamicauth.com'
-const MPC_RELAY_URL = 'https://relay.dynamicauth.com'
 
-const authenticatedEvmClient = async ({
-  authToken,
-  environmentId,
-  baseApiUrl,
-  baseMPCRelayApiUrl,
-}: {
-  authToken: string
-  environmentId: string
-  baseApiUrl?: string
-  baseMPCRelayApiUrl?: string
-}) => {
-  const client = new DynamicEvmWalletClient({
-    authToken,
-    environmentId,
-    baseApiUrl: baseApiUrl || BASE_API_URL,
-    baseMPCRelayApiUrl: baseMPCRelayApiUrl || MPC_RELAY_URL,
-  })
+// Create embedded wallet using Dynamic's REST API
+const createDynamicEmbeddedWallet = async (apiKey: string, environmentId: string, userId: string, chain: string) => {
+  console.log(`Creating embedded wallet for user: ${userId}, chain: ${chain}`)
   
-  await client.authenticateApiToken(authToken)
-  return client
+  // Map chain names to Dynamic's expected format
+  const chainMap: { [key: string]: string } = {
+    'ethereum': 'EVM',
+    'polygon': 'EVM', 
+    'base': 'EVM',
+    'arbitrum': 'EVM',
+    'optimism': 'EVM',
+    'solana': 'SOL'
+  }
+  
+  const dynamicChain = chainMap[chain.toLowerCase()] || 'EVM'
+  
+  // Create embedded wallet using the correct endpoint
+  const response = await fetch(`${BASE_API_URL}/api/v0/environments/${environmentId}/embeddedWallets`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      identifier: userId,
+      type: 'userId',
+      chains: [dynamicChain],
+      chain: dynamicChain
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('Dynamic API Error Response:', errorText)
+    throw new Error(`Failed to create embedded wallet: ${response.status} - ${errorText}`)
+  }
+
+  const result = await response.json()
+  console.log('Dynamic API Success Response:', JSON.stringify(result, null, 2))
+  
+  return result
 }
 
 serve(async (req) => {
@@ -116,29 +134,22 @@ serve(async (req) => {
       )
     }
 
-    // Create new wallet using Dynamic Labs
-    const evmClient = await authenticatedEvmClient({
-      authToken: dynamicApiKey,
-      environmentId: dynamicEnvId,
-    })
+    // Create new embedded wallet using Dynamic Labs REST API
+    console.log('Creating embedded wallet via Dynamic API...')
+    const walletResult = await createDynamicEmbeddedWallet(dynamicApiKey, dynamicEnvId, userId, chain)
+    
+    console.log('Wallet creation result:', JSON.stringify(walletResult, null, 2))
 
-    const thresholdSignatureScheme = ThresholdSignatureScheme.TWO_OF_TWO
-    const onError = (error: Error) => {
-      console.error('Dynamic wallet creation error:', error)
+    // Extract wallet information from the response
+    const user = walletResult.user
+    if (!user || !user.wallets || user.wallets.length === 0) {
+      throw new Error('No wallets returned from Dynamic API')
     }
 
-    const walletResult = await evmClient.createWalletAccount({
-      thresholdSignatureScheme,
-      password: password || undefined,
-      onError,
-    })
-
-    const {
-      accountAddress,
-      rawPublicKey,
-      publicKeyHex,
-      externalServerKeyShares,
-    } = walletResult
+    // Get the first wallet (should be the one we just created)
+    const wallet = user.wallets[0]
+    const accountAddress = wallet.publicKey
+    const walletId = wallet.id
 
     // Store wallet information in Supabase
     const { data: walletData, error: insertError } = await supabase
@@ -146,11 +157,16 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         wallet_address: accountAddress,
-        wallet_id: accountAddress, // Using address as ID for now
+        wallet_id: walletId,
         chain: chain,
-        raw_public_key: rawPublicKey,
-        public_key_hex: publicKeyHex,
-        external_server_key_shares: externalServerKeyShares,
+        raw_public_key: wallet.publicKey,
+        public_key_hex: wallet.publicKey,
+        external_server_key_shares: {
+          walletData: wallet,
+          userData: user,
+          provider: wallet.provider || 'embedded',
+          properties: wallet.properties || {}
+        },
       })
       .select()
       .single()
@@ -170,7 +186,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         walletAddress: accountAddress,
-        walletId: accountAddress,
+        walletId: walletId,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
