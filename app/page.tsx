@@ -4,20 +4,34 @@ import SpeechInput from "@/components/SpeechInput";
 import GlowCard from "@/components/GlowCard";
 import TypewriterExamples from "@/components/TypewriterExamples";
 import LoginButton from "@/components/LoginButton";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
 	const [example, setExample] = useState<string>("Rent, but split into tiny bites");
 	const { user, setShowAuthFlow } = useDynamicContext();
+	const router = useRouter();
+
+	// Redirect logged-in users to dashboard
+	useEffect(() => {
+		if (user) {
+			router.push("/dashboard");
+		}
+	}, [user, router]);
 
 	function handleSubmit(value: string) {
 		if (!user) {
 			setShowAuthFlow(true);
 			return;
 		}
-		// TODO: route to generation page or call API
-		console.log("Generate for:", value);
+		// Redirect to dashboard for logged-in users
+		router.push("/dashboard");
+	}
+
+	// Don't render if user is logged in (will redirect)
+	if (user) {
+		return null;
 	}
 
 	return (
@@ -43,7 +57,7 @@ export default function Home() {
 							value={example}
 							placeholder=""
 							hintText=""
-							nextLabel={user ? "Next" : "Login to continue"}
+							nextLabel="Next"
 							onSubmit={handleSubmit}
 							showNextButton
 							readOnly
