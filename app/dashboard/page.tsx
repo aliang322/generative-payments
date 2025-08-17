@@ -202,6 +202,8 @@ export default function Dashboard() {
 			if (parsedData.amountPerTransaction === -1) failedFields.push("amount per transaction");
 			if (parsedData.numberOfTransactions === -1) failedFields.push("number of transactions");
 			if (parsedData.totalAmount === -1) failedFields.push("total amount");
+			if (parsedData.startTimeOffset < 0) failedFields.push("start time (cannot be negative)");
+			if (parsedData.endTimeOffset < 0) failedFields.push("end time (cannot be negative)");
 			
 			if (failedFields.length > 0) {
 				const fieldList = failedFields.join(", ");

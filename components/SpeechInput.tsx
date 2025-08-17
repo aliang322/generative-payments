@@ -31,6 +31,7 @@ export default function SpeechInput({
 	const [isListening, setIsListening] = useState<boolean>(false);
 	const [isSpeechAvailable, setIsSpeechAvailable] = useState<boolean>(false);
 	const recognitionRef = useRef<any | null>(null);
+	const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 	// Detect speech availability only after mount to keep SSR/CSR markup identical
 	useEffect(() => {
@@ -44,8 +45,9 @@ export default function SpeechInput({
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 		const recognition = new SR();
 		recognition.lang = "en-US";
-		recognition.continuous = false;
+		recognition.continuous = true;
 		recognition.interimResults = true;
+		recognition.maxAlternatives = 1;
 		recognitionRef.current = recognition;
 
 		recognition.onresult = (event: any) => {
@@ -60,15 +62,29 @@ export default function SpeechInput({
 
 		recognition.onend = () => {
 			setIsListening(false);
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+				timeoutRef.current = null;
+			}
 		};
 
-		recognition.onerror = () => {
+		recognition.onerror = (event: any) => {
+			console.log('Speech recognition error:', event.error);
 			setIsListening(false);
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+				timeoutRef.current = null;
+			}
+			// Don't restart automatically on error
 		};
 
 		return () => {
 			recognition.stop?.();
 			recognitionRef.current = null;
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+				timeoutRef.current = null;
+			}
 		};
 	}, [isSpeechAvailable, onChange, showMic]);
 
@@ -97,19 +113,40 @@ export default function SpeechInput({
 
 	function toggleListening() {
 		if (!isSpeechAvailable || !showMic) {
-			alert("Speech recognition isn’t supported in this browser. Try Chrome on Android or Safari on iOS.");
+			alert("Speech recognition isn't supported in this browser. Try Chrome on Android or Safari on iOS.");
 			return;
 		}
 		if (!recognitionRef.current) return;
+		
 		if (isListening) {
+			// Stop recording
 			recognitionRef.current.stop();
 			setIsListening(false);
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current);
+				timeoutRef.current = null;
+			}
 		} else {
+			// Start recording
 			try {
 				setIsListening(true);
 				recognitionRef.current.start();
-			} catch {
+				
+				// Set a maximum recording time of 60 seconds as a safety measure
+				timeoutRef.current = setTimeout(() => {
+					if (recognitionRef.current && isListening) {
+						recognitionRef.current.stop();
+						setIsListening(false);
+						console.log('Speech recognition stopped due to 60s timeout');
+					}
+				}, 60000);
+			} catch (error) {
+				console.log('Failed to start speech recognition:', error);
 				setIsListening(false);
+				if (timeoutRef.current) {
+					clearTimeout(timeoutRef.current);
+					timeoutRef.current = null;
+				}
 			}
 		}
 	}
