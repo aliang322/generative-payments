@@ -238,7 +238,7 @@ export default function Dashboard() {
 					description: planDescription,
 					planType: planType,
 					chain: selectedChain,
-					userId: user.userId || user.id || 'unknown',
+					userId: (user as any).userId || (user as any).id || user.email || 'unknown',
 				}),
 			});
 
