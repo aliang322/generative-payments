@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import LoginButton from "@/components/LoginButton";
 import SpeechInput from "@/components/SpeechInput";
 import GlowCard from "@/components/GlowCard";
+import FernFundingModal from "@/components/FernFundingModal";
 
 type Plan = {
 	id: string;
@@ -117,6 +118,10 @@ export default function Dashboard() {
 	const [importPlanName, setImportPlanName] = useState<string>("");
 	const [planCreationTime, setPlanCreationTime] = useState<number | null>(null);
 	const [editablePlanData, setEditablePlanData] = useState<PaymentPlanData | null>(null);
+	
+	// Fern funding modal state
+	const [showFernModal, setShowFernModal] = useState<boolean>(false);
+	const [selectedPlanForFunding, setSelectedPlanForFunding] = useState<Plan | null>(null);
 
 	// Validation function
 	function validateForm(): { isValid: boolean; warnings: string[] } {
@@ -274,15 +279,17 @@ export default function Dashboard() {
 
 	function handleFundPlan(planId: string) {
 		console.log("Fund button clicked for plan:", planId);
-		console.log("setShowDynamicUserProfile available:", !!setShowDynamicUserProfile);
 		
-		// Open Dynamic user profile which contains funding options
-		if (setShowDynamicUserProfile) {
-			setShowDynamicUserProfile(true);
-		} else {
-			console.error("setShowDynamicUserProfile is not available");
-			alert("Funding options not available. Please try again or contact support.");
+		// Find the plan
+		const plan = plans.find(p => p.id === planId);
+		if (!plan) {
+			console.error("Plan not found:", planId);
+			return;
 		}
+		
+		// Set the selected plan and show Fern funding modal
+		setSelectedPlanForFunding(plan);
+		setShowFernModal(true);
 	}
 
 	function handleDeletePlan(planId: string) {
@@ -861,7 +868,7 @@ export default function Dashboard() {
 															<button
 																onClick={() => handleFundPlan(plan.id)}
 																className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-gradient-to-b from-blue-500 to-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 hover:scale-105 active:scale-95 cursor-pointer"
-																disabled={!setShowDynamicUserProfile}
+																// disabled={!setShowDynamicUserProfile} // Removed Dynamic context dependency
 															>
 																Fund
 															</button>
@@ -886,8 +893,30 @@ export default function Dashboard() {
 			
 			{/* Hidden Dynamic Widget for funding options */}
 			<div className="hidden">
-				<DynamicWidget />
+				{/* <DynamicWidget /> */}
 			</div>
+			
+			{/* Fern Funding Modal */}
+			{selectedPlanForFunding && (
+				<FernFundingModal
+					isOpen={showFernModal}
+					onClose={() => {
+						setShowFernModal(false);
+						setSelectedPlanForFunding(null);
+					}}
+					plan={{
+						id: selectedPlanForFunding.id,
+						name: selectedPlanForFunding.name,
+						amountPerTransaction: selectedPlanForFunding.amountPerTransaction || 0,
+						numberOfTransactions: selectedPlanForFunding.numberOfTransactions || 0,
+						totalAmount: (selectedPlanForFunding.amountPerTransaction || 0) * (selectedPlanForFunding.numberOfTransactions || 0),
+						chain: selectedPlanForFunding.chain || "base",
+						type: selectedPlanForFunding.type,
+					}}
+					userEmail={user?.email || "test@example.com"}
+					agentWalletAddress="0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+				/>
+			)}
 		</main>
 	);
 }

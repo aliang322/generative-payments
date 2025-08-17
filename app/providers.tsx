@@ -1,5 +1,6 @@
 "use client";
 
+import { ReactNode } from "react";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { AlgorandWalletConnectors } from "@dynamic-labs/algorand";
 import { BitcoinWalletConnectors } from "@dynamic-labs/bitcoin";
@@ -10,8 +11,13 @@ import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 import { StarknetWalletConnectors } from "@dynamic-labs/starknet";
 import { SuiWalletConnectors } from "@dynamic-labs/sui";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+interface ProvidersProps {
+  children: ReactNode;
+}
+
+export default function Providers({ children }: ProvidersProps) {
 	const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENV_ID || "";
+	
 	return (
 		<DynamicContextProvider
 			settings={{
