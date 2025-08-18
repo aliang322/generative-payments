@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌐 Dynamic Crypto Onboarding Flow
 
-## Getting Started
+### Dynamic simplifies crypto transfers and onboarding for any user, regardless of their wallet experience!  
 
-First, run the development server:
+#### Mission: Onboard the next billion users to crypto by combining NLP-driven plans, automated wallets, and cross-chain transfers  
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 💡 Inspiration  
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Crypto onboarding is complicated.** Many users either have no wallet, no crypto, or are unfamiliar with chain selection and token transfers. Existing solutions often require technical expertise or multiple platforms.  
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Dynamic** solves this by providing a guided, role-based flow for sending and receiving crypto with minimal friction, all powered by structured NLP and automated wallets.  
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## ❓ What it does  
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Dynamic** enables users to create and accept crypto transfer plans through a simple, interactive flow:  
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Sign in**
+   - “I have no crypto” → provision a Dynamic embedded wallet (EVM default)  
+   - “I have a wallet” (MetaMask, etc.) → connect via Dynamic  
 
-## Deploy on Vercel
+2. **Plan creation**
+   - User describes transfer plan in plain language  
+   - NLP converts the description into structured JSON variables  
+   - JSON variables drive **CCTP v2 Fast transfers** from an Agent Wallet using automated cron jobs  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3. **Role selection**
+   - Sender chooses to fund the plan  
+   - Receiver chooses the receiving chain (must be supported by CCTP Fast/Standard)  
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. **Funding options**
+   - Option 1: **Fern Onramp** → fiat → USDC → Agent Wallet  
+   - Option 2: Transfer existing USDC from connected or embedded wallet  
+
+5. **Plan acceptance & execution**
+   - Share acceptance link with the counterparty (contains plan terms, policy hash, supported chains)  
+   - Receiver authenticates via Dynamic (instant wallet if needed)  
+   - Optional Auto Cash-Out (Fern) after KYC/payout profile  
+
+6. **Chain compatibility**
+   - If the selected source or destination chain is unsupported, Dynamic prompts a switch to a supported chain  
+
+---
+
+## 🚧 How we built it  
+
+**Technologies Used:**  
+- Dynamic Embedded Wallets  
+- MetaMask Integration  
+- NLP for structured plan extraction  
+- CCTP v2 Fast Transfers  
+- Vercel Cron Jobs  
+- Fern Onramp  
+
+**Key Components:**  
+1. **Dynamic Wallet Provisioning** – Automatically create wallets for users who don’t have crypto  
+2. **NLP-Driven Plan Parsing** – Convert unstructured user input into actionable JSON variables  
+3. **Agent Wallet Automation** – Agent Wallets receive sender USDC and trigger CCTP v2 transfers  
+4. **Role-Based Flow** – Clear separation between sender and receiver for plan creation and acceptance  
+5. **Cross-Chain Transfers** – Leverages CCTP v2 to support multiple chains and ensure fast settlement  
+6. **Optional Auto Cash-Out** – Automatically convert USDC to fiat via Fern after KYC verification  
+
